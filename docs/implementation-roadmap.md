@@ -3,34 +3,33 @@
 ## Purpose
 Define the execution sequence for the WhatsApp helpdesk bridge project so implementation can proceed in small, verifiable phases without drifting from the documented design.
 
-## Active Phase: Phase 8 - Command Safety and Routing
+## Active Phase: Phase 9 - Webhook-Driven End-to-End Flow
 
 ### Objective
-Implement the local routing layer that separates conversational helpdesk, safe commands, technician commands, and blocked requests.
+Move from manual relay to automatic inbound processing from OpenWA webhooks.
 
 ### Source Documents
 - `AGENTS.md`
 - `docs/helpdesk-whatsapp-design.md`
-- `docs/open-questions-and-challenges.md`
+- `docs/technical-implementation-plan.md`
 
 ### Checklist
-- [ ] Implement slash-command parsing.
-- [ ] Implement route classification for blocked, local, and Hermes paths.
-- [ ] Add the initial safe command set.
-- [ ] Add technician-only command gating stubs.
-- [ ] Keep high-sensitivity commands disabled by default.
-- [ ] Add audit logging for allow/deny decisions.
+- [ ] Implement the webhook HTTP endpoint in TypeScript.
+- [ ] Validate incoming session and event shape.
+- [ ] Normalize supported inbound message events.
+- [ ] Route private inbound messages through policy and broker.
+- [ ] Send the final reply back via OpenWA.
+- [ ] Document webhook registration and local run instructions.
 
 ### Output
-- `src/features/inbound/commandParser.ts`
-- `src/features/inbound/routeClassifier.ts`
-- `src/features/inbound/commandRouter.ts`
+- `src/features/http/routes/webhooks.ts`
+- `src/features/http/server.ts`
+- updated docs for runtime and testing
 
 ### Challenge / Verification
-- Safe command works for a regular private user.
-- Technician-only command is denied for a regular user.
-- High-sensitivity command remains disabled.
-- Free-text helpdesk message routes to Hermes.
+- A real inbound private WhatsApp message reaches the app through webhook delivery.
+- The app classifies, processes, and replies automatically.
+- Repeated messages in the same chat retain Hermes continuity.
 
 ## Delivery Status
 
@@ -43,8 +42,8 @@ Implement the local routing layer that separates conversational helpdesk, safe c
 | 5 | OpenWA Ingress and Normalization | Completed | TypeScript transport, normalization, and debug routes are verified. |
 | 6 | Identity and Access Policy | Completed | AD eligibility, technician lookup, and local gating are verified. |
 | 7 | Hermes Broker and Session Store | Completed | TypeScript broker continuity, dry-run, and reset flow are verified. |
-| 8 | Command Safety and Routing | Active | Split safe, self-service, and restricted commands. |
-| 9 | Webhook-Driven End-to-End Flow | Pending | Receive real inbound events and reply automatically. |
+| 8 | Command Safety and Routing | Completed | Local parser, routing, and audit behavior are verified. |
+| 9 | Webhook-Driven End-to-End Flow | Active | Receive real inbound events and reply automatically. |
 | 10 | Hardening and Operations | Pending | Logging, audit, deployment, and recovery readiness. |
 
 ## Completed Phases
@@ -282,39 +281,41 @@ Replace the Python relay logic with a TypeScript broker that talks to `marisa` a
 - A direct TypeScript broker call with `dryRun: true` returned a reply without mutating the stored session state for the active chat.
 - A broker reset for `62857xxxx2218@c.us` rotated the local session mapping to an isolated reset key, and the next turn returned `NOSESSION` with a fresh Hermes `session_id`.
 
-## Planned Phases
-
 ### Phase 8 - Command Safety and Routing
 
 #### Objective
 Implement the local routing layer that separates conversational helpdesk, safe commands, technician commands, and blocked requests.
 
 #### Source Documents
+- `AGENTS.md`
 - `docs/helpdesk-whatsapp-design.md`
 - `docs/open-questions-and-challenges.md`
 
 #### Checklist
-- [ ] Implement slash-command parsing.
-- [ ] Implement route classification for blocked, local, and Hermes paths.
-- [ ] Add the initial safe command set.
-- [ ] Add technician-only command gating stubs.
-- [ ] Keep high-sensitivity commands disabled by default.
-- [ ] Add audit logging for allow/deny decisions.
+- [x] Implement slash-command parsing.
+- [x] Implement route classification for blocked, local, and Hermes paths.
+- [x] Add the initial safe command set.
+- [x] Add technician-only command gating stubs.
+- [x] Keep high-sensitivity commands disabled by default.
+- [x] Add audit logging for allow/deny decisions.
 
 #### Output
 - `src/features/inbound/commandParser.ts`
 - `src/features/inbound/routeClassifier.ts`
 - `src/features/inbound/commandRouter.ts`
-
-#### Dependencies
-- Completed Phase 6 identity and policy
-- Completed Phase 7 Hermes broker
+- `src/verify-phase8-routing.ts`
+- Updated root docs
 
 #### Challenge / Verification
-- Safe command works for a regular private user.
-- Technician-only command is denied for a regular user.
-- High-sensitivity command remains disabled.
-- Free-text helpdesk message routes to Hermes.
+- `npm run lint` succeeded after the routing-layer updates.
+- `npm run typecheck` succeeded after the routing-layer updates.
+- `npm run build` succeeded after the routing-layer updates.
+- `node dist/verify-phase8-routing.js` confirmed `/help` for a known regular private user was routed to `local_general_command` and returned the local help reply.
+- `node dist/verify-phase8-routing.js` confirmed `/finduser widji` for the same regular private user was blocked with `Command ini tidak tersedia untuk role Anda.`.
+- `node dist/verify-phase8-routing.js` confirmed `/getlaps pc-001` remained blocked with `Command ini belum diizinkan pada policy helpdesk WhatsApp.`.
+- `node dist/verify-phase8-routing.js` confirmed free-text helpdesk content for the same regular private user routed to `hermes_helpdesk_chat`, produced a broker reply, and emitted an audit log entry with a masked phone number.
+
+## Planned Phases
 
 ### Phase 9 - Webhook-Driven End-to-End Flow
 
@@ -393,9 +394,9 @@ Prepare the TypeScript service for repeatable deployment, support, and safer pro
 - Session storage is currently file-based in the temporary harness and will need a TypeScript equivalent first, with a likely later move to a stronger store if traffic grows.
 
 ## Next Decision Gate
-Before starting Phase 8 execution, the repository should have:
+Before starting Phase 9 execution, the repository should have:
 - a working TypeScript scaffold
 - typed configuration for Hermes and OpenWA
 - a defined `src/` module layout
 - successful build/typecheck evidence captured in this roadmap
-- Phase 7 marked complete with synchronized supporting docs
+- Phase 8 marked complete with synchronized supporting docs

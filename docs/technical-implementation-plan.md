@@ -62,6 +62,12 @@ Define the implementation direction for two separate workstreams:
   - dry-run broker replies for safe operator verification
   - explicit session reset with isolated post-reset session keys
   - request/response boundary logging for Hermes calls
+- The inbound routing layer now supports:
+  - slash-command parsing
+  - route classification from policy outcome into blocked, local, or Hermes flows
+  - initial local safe-command replies
+  - technician-command gating stubs
+  - audit logging for allow and deny outcomes
 - Startup no longer hard-fails on a mandatory OpenWA fetch; live OpenWA inspection is available through dedicated debug routes instead.
 
 ## Milestone Mapping

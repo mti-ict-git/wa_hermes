@@ -15,14 +15,18 @@ async function main(): Promise<void> {
   const openwaClient = new OpenWAClient(config.openwa);
   const hermesClient = new HermesClient(config.hermes);
   const sessionStore = new HermesSessionStore();
+  const routeClassifier = new RouteClassifier();
+  const accessPolicy = new AccessPolicy();
+  const helpdeskBroker = new HelpdeskBroker(hermesClient, sessionStore);
+  const commandRouter = new CommandRouter(accessPolicy, routeClassifier, helpdeskBroker);
 
   const application = {
-    commandRouter: new CommandRouter(),
-    routeClassifier: new RouteClassifier(),
+    commandRouter,
+    routeClassifier,
     identityResolver: new IdentityResolver(config.ldap, config.policy),
-    accessPolicy: new AccessPolicy(),
+    accessPolicy,
     messagingService: new MessagingService(openwaClient),
-    helpdeskBroker: new HelpdeskBroker(hermesClient, sessionStore),
+    helpdeskBroker,
     server: new AppServer(config, openwaClient),
   };
 

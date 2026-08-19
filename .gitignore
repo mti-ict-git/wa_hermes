@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+__pycache__/
+*.pyc
+
+.chat_hermes_state.json
+.openwa_hermes_state.json
+
+reference/
+
+.DS_Store
+Thumbs.db

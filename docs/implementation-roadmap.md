@@ -249,38 +249,40 @@ Implement the local authorization boundary so WhatsApp traffic is filtered befor
 - A direct TypeScript resolver lookup for `6280000000000@c.us` resolved to role `unregistered` and was denied with the not-registered operator message.
 - A direct TypeScript resolver lookup for the same known regular user in group context (`120363193119024819@g.us`) was denied with the private-chat-only policy.
 
-## Planned Phases
-
 ### Phase 7 - Hermes Broker and Session Store
 
 #### Objective
 Replace the Python relay logic with a TypeScript broker that talks to `marisa` and preserves Hermes continuity per WhatsApp chat.
 
 #### Source Documents
+- `AGENTS.md`
 - `docs/helpdesk-whatsapp-design.md`
 - `docs/technical-implementation-plan.md`
 
 #### Checklist
-- [ ] Implement a Hermes API client in TypeScript.
-- [ ] Implement per-chat session storage for `session_key` and `session_id`.
-- [ ] Build the helpdesk broker prompt contract.
-- [ ] Default the broker to the stable sync request path.
-- [ ] Add safe session reset capability for test and support flows.
-- [ ] Add structured logging for Hermes request/response boundaries.
+- [x] Implement a Hermes API client in TypeScript.
+- [x] Implement per-chat session storage for `session_key` and `session_id`.
+- [x] Build the helpdesk broker prompt contract.
+- [x] Default the broker to the stable sync request path.
+- [x] Add safe session reset capability for test and support flows.
+- [x] Add structured logging for Hermes request/response boundaries.
 
 #### Output
 - `src/features/hermes/hermesClient.ts`
 - `src/features/hermes/helpdeskBroker.ts`
 - `src/features/state/hermesSessionStore.ts`
-
-#### Dependencies
-- Completed Phase 4 foundation
-- Completed Phase 6 identity and policy
+- Updated root docs
 
 #### Challenge / Verification
-- Same private WhatsApp chat preserves Hermes session continuity across two turns.
-- Separate chats do not share Hermes session ids.
-- Broker can return a reply without sending when run in dry-run mode.
+- `npm run lint` succeeded after the Hermes broker and session-store updates.
+- `npm run typecheck` succeeded after the Hermes broker and session-store updates.
+- `npm run build` succeeded after the Hermes broker and session-store updates.
+- A direct TypeScript broker call for private chat `62857xxxx2218@c.us` returned `ACK` for the first turn and reused the same Hermes `session_id` on the second turn, which returned `TS7-991`.
+- A direct TypeScript broker call for separate private chat `62812xxxx7466@c.us` returned `NOSESSION` with a different Hermes `session_id`, confirming chats do not share continuity.
+- A direct TypeScript broker call with `dryRun: true` returned a reply without mutating the stored session state for the active chat.
+- A broker reset for `62857xxxx2218@c.us` rotated the local session mapping to an isolated reset key, and the next turn returned `NOSESSION` with a fresh Hermes `session_id`.
+
+## Planned Phases
 
 ### Phase 8 - Command Safety and Routing
 
@@ -391,8 +393,9 @@ Prepare the TypeScript service for repeatable deployment, support, and safer pro
 - Session storage is currently file-based in the temporary harness and will need a TypeScript equivalent first, with a likely later move to a stronger store if traffic grows.
 
 ## Next Decision Gate
-Before starting Phase 7 execution, the repository should have:
+Before starting Phase 8 execution, the repository should have:
 - a working TypeScript scaffold
 - typed configuration for Hermes and OpenWA
-- a defined `src/` module layoutecheck evidence captured in this roadmap
-- Phase 6 marked complete with synchronized supporting docs==================
+- a defined `src/` module layout
+- successful build/typecheck evidence captured in this roadmap
+- Phase 7 marked complete with synchronized supporting docs

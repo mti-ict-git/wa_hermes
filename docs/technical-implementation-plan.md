@@ -38,7 +38,7 @@ Define the implementation direction for two separate workstreams:
 - `src/features/state/`: session storage and transient state helpers
 
 ## Current Implementation State
-- The Phase 4 TypeScript scaffold is in place, Phase 5 transport wiring is implemented, and Phase 6 policy foundations are now active.
+- The Phase 4 TypeScript scaffold is in place, Phase 5 transport wiring is implemented, Phase 6 policy foundations are active, and Phase 7 Hermes broker continuity is verified.
 - The app currently exposes:
   - `/health`
   - `/debug/config`

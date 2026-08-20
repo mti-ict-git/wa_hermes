@@ -1,7 +1,15 @@
+export interface RetryPolicyConfig {
+  maxAttempts: number;
+  delayMs: number;
+  timeoutMs: number;
+}
+
 export interface HermesConfig {
   baseUrl: string;
   apiKey: string;
+  model: string;
   mode: "sync" | "async";
+  retryPolicy: RetryPolicyConfig;
 }
 
 export interface OpenWAConfig {
@@ -10,6 +18,8 @@ export interface OpenWAConfig {
   apiKey: string;
   apiDocUrl?: string;
   testNumber?: string;
+  botMentionAliases: string[];
+  retryPolicy: RetryPolicyConfig;
 }
 
 export interface LdapConfig {
@@ -22,6 +32,9 @@ export interface LdapConfig {
 
 export interface PolicyConfig {
   technicianContactsPath: string;
+  authContextSecret: string;
+  authContextPolicyVersion: string;
+  authContextTtlSeconds: number;
 }
 
 export interface AppServerConfig {
@@ -29,10 +42,16 @@ export interface AppServerConfig {
   port: number;
 }
 
+export interface LoggingConfig {
+  level: "debug" | "info" | "warn" | "error";
+  format: "json" | "pretty";
+}
+
 export interface AppConfig {
   appName: string;
   environment: string;
   server: AppServerConfig;
+  logging: LoggingConfig;
   hermes: HermesConfig;
   openwa: OpenWAConfig;
   ldap: LdapConfig;

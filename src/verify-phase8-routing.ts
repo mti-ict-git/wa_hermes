@@ -3,6 +3,7 @@ import { HelpdeskBroker } from "./features/hermes/helpdeskBroker";
 import { HermesClient } from "./features/hermes/hermesClient";
 import { CommandRouter } from "./features/inbound/commandRouter";
 import { RouteClassifier } from "./features/inbound/routeClassifier";
+import { createRootLogger } from "./features/logging/logger";
 import type { OpenWAMessage } from "./features/openwa/types";
 import type { NormalizedInboundEvent } from "./features/openwa/types";
 import { AccessPolicy } from "./features/policy/accessPolicy";
@@ -30,6 +31,7 @@ function buildEvent(chatId: string, messageId: string, text: string): Normalized
     messageType: "chat",
     senderId: chatId,
     recipientId: chatId,
+    addressedToBot: true,
     text,
     timestamp,
     raw,
@@ -38,11 +40,13 @@ function buildEvent(chatId: string, messageId: string, text: string): Normalized
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  const logger = createRootLogger(config.logging);
   const resolver = new IdentityResolver(config.ldap, config.policy);
   const router = new CommandRouter(
     new AccessPolicy(),
     new RouteClassifier(),
-    new HelpdeskBroker(new HermesClient(config.hermes), new HermesSessionStore()),
+    new HelpdeskBroker(new HermesClient(config.hermes, logger.child("verify.hermes")), new HermesSessionStore(), logger.child("verify.broker")),
+    logger.child("verify.router"),
   );
 
   const chatId = "6281296827466@c.us";

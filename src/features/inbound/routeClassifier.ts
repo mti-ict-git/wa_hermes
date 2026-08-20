@@ -3,6 +3,7 @@ import { parseCommand } from "./commandParser";
 
 export type InboundRoute =
   | "blocked"
+  | "silent_ignore"
   | "local_general_command"
   | "local_user_self_service"
   | "local_technician_command"

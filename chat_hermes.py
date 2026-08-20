@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 
 
 DEFAULT_BASE_URL = "http://10.60.10.59:8642"
-DEFAULT_MODEL = "hermes-agent"
+DEFAULT_MODEL = "marisa"
 DEFAULT_SESSION_KEY = "wa:test:simple-chat"
 DEFAULT_MODE = "async"
 DEFAULT_POLL_INTERVAL_SECONDS = 2.0
@@ -29,12 +29,13 @@ def load_env_file(env_path: Path) -> dict[str, str]:
     return values
 
 
-def get_config() -> tuple[str, str, str, str]:
+def get_config() -> tuple[str, str, str, str, str]:
     env_path = Path(__file__).with_name(".env")
     env_values = load_env_file(env_path)
 
     api_key = os.getenv("API_SERVER_KEY") or env_values.get("API_SERVER_KEY", "")
     base_url = os.getenv("HERMES_BASE_URL") or env_values.get("HERMES_BASE_URL", DEFAULT_BASE_URL)
+    model = os.getenv("HERMES_MODEL") or env_values.get("HERMES_MODEL", DEFAULT_MODEL)
     session_key = os.getenv("HERMES_SESSION_KEY") or env_values.get("HERMES_SESSION_KEY", DEFAULT_SESSION_KEY)
     mode = os.getenv("HERMES_MODE") or env_values.get("HERMES_MODE", DEFAULT_MODE)
 
@@ -47,7 +48,7 @@ def get_config() -> tuple[str, str, str, str]:
     if mode not in {"sync", "async"}:
         mode = DEFAULT_MODE
 
-    return base_url.rstrip("/"), api_key, session_key, mode
+    return base_url.rstrip("/"), api_key, model.strip() or DEFAULT_MODEL, session_key, mode
 
 
 def get_state_path() -> Path:
@@ -120,12 +121,13 @@ def request_json(
 def chat_once_sync(
     base_url: str,
     api_key: str,
+    model: str,
     prompt: str,
     session_key: str,
     session_id: str = "",
 ) -> tuple[str, str]:
     payload = {
-        "model": DEFAULT_MODEL,
+        "model": model,
         "messages": [
             {
                 "role": "user",
@@ -152,6 +154,7 @@ def chat_once_sync(
 def chat_once_async(
     base_url: str,
     api_key: str,
+    model: str,
     prompt: str,
     session_key: str,
     session_id: str = "",
@@ -159,7 +162,7 @@ def chat_once_async(
     status_callback=None,
 ) -> tuple[str, str]:
     payload = {
-        "model": DEFAULT_MODEL,
+        "model": model,
         "input": prompt,
     }
     if session_id:
@@ -206,6 +209,7 @@ def chat_once_async(
 def run_prompt(
     base_url: str,
     api_key: str,
+    model: str,
     prompt: str,
     session_key: str,
     session_id: str,
@@ -216,6 +220,7 @@ def run_prompt(
         return chat_once_async(
             base_url=base_url,
             api_key=api_key,
+            model=model,
             prompt=prompt,
             session_key=session_key,
             session_id=session_id,
@@ -224,6 +229,7 @@ def run_prompt(
     return chat_once_sync(
         base_url=base_url,
         api_key=api_key,
+        model=model,
         prompt=prompt,
         session_key=session_key,
         session_id=session_id,
@@ -248,7 +254,7 @@ def parse_args(argv: list[str]) -> tuple[bool, str, str]:
 
 def main() -> int:
     try:
-        base_url, api_key, session_key, default_mode = get_config()
+        base_url, api_key, model, session_key, default_mode = get_config()
     except RuntimeError as exc:
         print(f"Error: {exc}")
         return 1
@@ -270,6 +276,7 @@ def main() -> int:
             answer, returned_session_id = run_prompt(
                 base_url=base_url,
                 api_key=api_key,
+                model=model,
                 prompt=prompt,
                 session_key=session_key,
                 session_id=session_id,
@@ -290,6 +297,7 @@ def main() -> int:
             return 1
 
     print(f"Connected to Hermes at {base_url}")
+    print(f"Model aktif: {model}")
     print(f"Session key: {session_key}")
     print(f"Session id aktif: {session_id or '(belum ada)'}")
     print(f"Mode aktif: {mode}")
@@ -314,6 +322,7 @@ def main() -> int:
         if prompt.lower() == "/session":
             print(f"Session key: {session_key}")
             print(f"Session id aktif: {session_id or '(belum ada)'}")
+            print(f"Model aktif: {model}")
             print(f"Mode aktif: {mode}")
             continue
         if prompt.lower() == "/sync":
@@ -329,6 +338,7 @@ def main() -> int:
             answer, returned_session_id = run_prompt(
                 base_url=base_url,
                 api_key=api_key,
+                model=model,
                 prompt=prompt,
                 session_key=session_key,
                 session_id=session_id,

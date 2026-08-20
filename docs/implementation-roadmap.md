@@ -3,33 +3,56 @@
 ## Purpose
 Define the execution sequence for the WhatsApp helpdesk bridge project so implementation can proceed in small, verifiable phases without drifting from the documented design.
 
-## Active Phase: Phase 9 - Webhook-Driven End-to-End Flow
+## Active Phase: None - Phase 10 Closed
 
-### Objective
-Move from manual relay to automatic inbound processing from OpenWA webhooks.
+### Current State
+Phases 1 through 10 are complete for the current implementation scope. The service is ready for controlled pilot testing and operational tuning.
+The Hermes broker now honors `HERMES_MODE` at runtime for the live WhatsApp channel, so deployments can explicitly choose sync or async behavior without patching code again.
+The next documented increment is a trusted orchestration layer built around signed `AuthContext`, typed intent generation, local validation, approved read-only adapters, early ACK, and final Marisa summarization.
 
-### Source Documents
+### Source Documents Used For Latest Closure
 - `AGENTS.md`
 - `docs/helpdesk-whatsapp-design.md`
 - `docs/technical-implementation-plan.md`
+- `docs/open-questions-and-challenges.md`
+- `docs/deployment-and-environment.md`
+- `docs/operational-runbook.md`
+- `docs/security-and-access-model.md`
+- `docs/integration-contracts.md`
+- `docs/acknowledgement-and-execution-flow.md`
 
 ### Checklist
-- [ ] Implement the webhook HTTP endpoint in TypeScript.
-- [ ] Validate incoming session and event shape.
-- [ ] Normalize supported inbound message events.
-- [ ] Route private inbound messages through policy and broker.
-- [ ] Send the final reply back via OpenWA.
-- [ ] Document webhook registration and local run instructions.
+- [x] Add structured application logging.
+- [x] Add error handling and retry policy for Hermes and OpenWA failures.
+- [x] Add audit/event logging for restricted command decisions.
+- [x] Define the initial deployment shape and required env vars.
+- [x] Define session-state storage evolution path beyond local file storage.
+- [x] Document operational runbook items for restart, webhook recovery, and message replay.
 
 ### Output
-- `src/features/http/routes/webhooks.ts`
-- `src/features/http/server.ts`
-- updated docs for runtime and testing
+- logging/audit modules
+- deployment and runbook docs
+- finalized env documentation
+- synchronized roadmap and implementation plan
 
-### Challenge / Verification
-- A real inbound private WhatsApp message reaches the app through webhook delivery.
-- The app classifies, processes, and replies automatically.
-- Repeated messages in the same chat retain Hermes continuity.
+### Latest Verification Evidence
+- `npm run lint` succeeded after the Phase 10 hardening updates.
+- `npm run typecheck` succeeded after the Phase 10 hardening updates.
+- `npm run build` succeeded after the Phase 10 hardening updates.
+- `node dist/verify-phase10-operations.js` confirmed:
+  - blocked restricted commands emit structured `policy_decision` audit logs
+  - Hermes failure paths emit retry attempts and a readable final failure
+  - OpenWA failure paths emit retry attempts and a readable final failure
+  - verification summary returned `blockedRoute=blocked`, `hermesFailure=hermes:fetch failed`, and `openwaFailure=openwa:fetch failed`
+- `npm run typecheck` succeeded after enabling runtime async Hermes support in the TypeScript broker.
+- `npm run build` succeeded after enabling runtime async Hermes support in the TypeScript broker.
+- Restarting the service with `.env` set to `HERMES_MODE='async'` made `GET /debug/config` return `hermes.mode = "async"`.
+- A live inbound WhatsApp private message triggered `hermes.run.start`, `hermes.run.poll`, and `run_status_changed=status="completed"` in the application log before the reply was sent back through OpenWA.
+- Architecture documentation was extended to define:
+  - HMAC-signed `AuthContext`
+  - typed intent and validator contracts
+  - approved read-only AD and Veeam adapter contracts
+  - early ACK plus final summarization execution flow
 
 ## Delivery Status
 
@@ -43,8 +66,8 @@ Move from manual relay to automatic inbound processing from OpenWA webhooks.
 | 6 | Identity and Access Policy | Completed | AD eligibility, technician lookup, and local gating are verified. |
 | 7 | Hermes Broker and Session Store | Completed | TypeScript broker continuity, dry-run, and reset flow are verified. |
 | 8 | Command Safety and Routing | Completed | Local parser, routing, and audit behavior are verified. |
-| 9 | Webhook-Driven End-to-End Flow | Active | Receive real inbound events and reply automatically. |
-| 10 | Hardening and Operations | Pending | Logging, audit, deployment, and recovery readiness. |
+| 9 | Webhook-Driven End-to-End Flow | Completed | Webhook ingress, routing, dedup, and reply path are verified. |
+| 10 | Hardening and Operations | Completed | Structured logging, retry handling, audit events, deployment docs, and runbook are in place. |
 
 ## Completed Phases
 
@@ -315,40 +338,39 @@ Implement the local routing layer that separates conversational helpdesk, safe c
 - `node dist/verify-phase8-routing.js` confirmed `/getlaps pc-001` remained blocked with `Command ini belum diizinkan pada policy helpdesk WhatsApp.`.
 - `node dist/verify-phase8-routing.js` confirmed free-text helpdesk content for the same regular private user routed to `hermes_helpdesk_chat`, produced a broker reply, and emitted an audit log entry with a masked phone number.
 
-## Planned Phases
-
 ### Phase 9 - Webhook-Driven End-to-End Flow
 
 #### Objective
 Move from manual relay to automatic inbound processing from OpenWA webhooks.
 
 #### Source Documents
+- `AGENTS.md`
 - `docs/helpdesk-whatsapp-design.md`
 - `docs/technical-implementation-plan.md`
 
 #### Checklist
-- [ ] Implement the webhook HTTP endpoint in TypeScript.
-- [ ] Validate incoming session and event shape.
-- [ ] Normalize supported inbound message events.
-- [ ] Route private inbound messages through policy and broker.
-- [ ] Send the final reply back via OpenWA.
-- [ ] Document webhook registration and local run instructions.
+- [x] Implement the webhook HTTP endpoint in TypeScript.
+- [x] Validate incoming session and event shape.
+- [x] Normalize supported inbound message events.
+- [x] Route private inbound messages through policy and broker.
+- [x] Send the final reply back via OpenWA.
+- [x] Document webhook registration and local run instructions.
 
 #### Output
 - `src/features/http/routes/webhooks.ts`
 - `src/features/http/server.ts`
-- updated docs for runtime and testing
-
-#### Dependencies
-- Completed Phase 5 OpenWA ingress
-- Completed Phase 6 identity and policy
-- Completed Phase 7 Hermes broker
-- Completed Phase 8 command routing
+- `src/features/openwa/eventNormalizer.ts`
+- `src/features/openwa/messagingService.ts`
+- Updated root docs
 
 #### Challenge / Verification
-- A real inbound private WhatsApp message reaches the app through webhook delivery.
-- The app classifies, processes, and replies automatically.
-- Repeated messages in the same chat retain Hermes continuity.
+- `npm run lint` succeeded after the webhook-flow updates.
+- `npm run typecheck` succeeded after the webhook-flow updates.
+- `npm run build` succeeded after the webhook-flow updates.
+- `POST http://127.0.0.1:8787/channel/webhooks/test` with a synthetic `message.received` payload for `/help` returned `handled: true`, normalized the event, resolved the sender as `user`, and routed to `local_general_command` without sending a live reply.
+- `POST http://127.0.0.1:8787/channel/webhooks/test` with a synthetic free-text `message.received` payload returned `handled: true`, routed to `hermes_helpdesk_chat`, and produced a broker reply through the same webhook pipeline.
+- `POST http://127.0.0.1:8787/webhooks/openwa` with synthetic message id `phase9-live-002` returned `sentReply: true` and `deliveryMode: send-text`, confirming the live webhook alias path can fall back from reply-to-message to plain outbound send when the quoted message id is not known by OpenWA.
+- Repeating the same `POST http://127.0.0.1:8787/webhooks/openwa` payload with message id `phase9-live-002` returned `duplicate: true`, confirming deduplication by inbound message id.
 
 ### Phase 10 - Hardening and Operations
 
@@ -356,30 +378,35 @@ Move from manual relay to automatic inbound processing from OpenWA webhooks.
 Prepare the TypeScript service for repeatable deployment, support, and safer production behavior.
 
 #### Source Documents
+- `AGENTS.md`
 - `docs/helpdesk-whatsapp-design.md`
 - `docs/technical-implementation-plan.md`
 - `docs/open-questions-and-challenges.md`
+- `docs/deployment-and-environment.md`
+- `docs/operational-runbook.md`
 
 #### Checklist
-- [ ] Add structured application logging.
-- [ ] Add error handling and retry policy for Hermes and OpenWA failures.
-- [ ] Add audit/event logging for restricted command decisions.
-- [ ] Define the initial deployment shape and required env vars.
-- [ ] Define session-state storage evolution path beyond local file storage.
-- [ ] Document operational runbook items for restart, webhook recovery, and message replay.
+- [x] Add structured application logging.
+- [x] Add error handling and retry policy for Hermes and OpenWA failures.
+- [x] Add audit/event logging for restricted command decisions.
+- [x] Define the initial deployment shape and required env vars.
+- [x] Define session-state storage evolution path beyond local file storage.
+- [x] Document operational runbook items for restart, webhook recovery, and message replay.
 
 #### Output
 - logging/audit modules
 - deployment and runbook docs
 - finalized env documentation
-
-#### Dependencies
-- Completed Phase 9 webhook flow
+- synchronized roadmap and implementation plan
 
 #### Challenge / Verification
-- Service starts from a clean environment with documented env vars.
-- Failure paths produce readable logs.
-- Recovery steps are documented and dry-run checked.
+- `npm run lint` succeeded after the Phase 10 hardening updates.
+- `npm run typecheck` succeeded after the Phase 10 hardening updates.
+- `npm run build` succeeded after the Phase 10 hardening updates.
+- `node dist/verify-phase10-operations.js` confirmed a blocked `/getlaps` route emitted a structured audit log with masked sender context.
+- `node dist/verify-phase10-operations.js` confirmed Hermes retry logging and final failure handling against an intentionally unreachable endpoint.
+- `node dist/verify-phase10-operations.js` confirmed OpenWA retry logging and final failure handling against an intentionally unreachable endpoint.
+- The deployment shape, required env vars, restart flow, webhook recovery flow, and replay approach are now documented in the runbook and deployment docs.
 
 ## Cross-Phase Rules
 - Do not route restricted commands to Hermes before local policy evaluation.
@@ -390,13 +417,13 @@ Prepare the TypeScript service for repeatable deployment, support, and safer pro
 
 ## Current Risks
 - AD and technician-contact integration details are still implementation-time unknowns in this repository.
-- The `marisa` profile currently behaves reliably on sync requests, while async `/v1/runs` is not yet the stable default.
-- Session storage is currently file-based in the temporary harness and will need a TypeScript equivalent first, with a likely later move to a stronger store if traffic grows.
+- The `marisa` profile behaves reliably on sync requests, and async `/v1/runs` also works when the request model is set to `marisa`; choose the mode explicitly through `HERMES_MODE` and prefer sync when the deployment does not need async behavior.
+- Session continuity and webhook dedup are currently in-process only in the TypeScript runtime, so service restarts clear operational state until the planned SQLite step is implemented.
+- Incoming private chats that arrive as `@lid` still need a confirmed canonical-phone mapping strategy before they can be treated as normal AD-backed private senders.
 
 ## Next Decision Gate
-Before starting Phase 9 execution, the repository should have:
-- a working TypeScript scaffold
-- typed configuration for Hermes and OpenWA
-- a defined `src/` module layout
-- successful build/typecheck evidence captured in this roadmap
-- Phase 8 marked complete with synchronized supporting docs
+Before moving beyond the current roadmap, decide:
+- whether the next increment is controlled pilot rollout, typed-intent orchestration, SQLite-backed state durability, or `@lid` identity resolution
+- whether blocked non-AD senders should receive explicit denial replies or remain silently ignored
+- whether any technician-only commands should move from stubbed or blocked state into an approved implementation phase
+- which initial read-only AD and Veeam intents should be approved for the first typed-intent adapter rollout

@@ -10,6 +10,7 @@ export interface AdUserRecord {
   employeeId?: string;
   department?: string;
   title?: string;
+  gender?: string;
 }
 
 function normalizePhoneDigits(value: string | undefined): string {
@@ -71,6 +72,10 @@ function mapEntryToUser(entry: ldap.SearchEntry): AdUserRecord {
     employeeId: pickFirstAttribute(attributes, "employeeID"),
     department: pickFirstAttribute(attributes, "department"),
     title: pickFirstAttribute(attributes, "title"),
+    gender:
+      pickFirstAttribute(attributes, "gender") ??
+      pickFirstAttribute(attributes, "genderIdentity") ??
+      pickFirstAttribute(attributes, "sex"),
   };
 }
 
@@ -198,6 +203,9 @@ export class LdapDirectory {
             "mobileNumber",
             "telephoneNumber",
             "employeeID",
+            "gender",
+            "genderIdentity",
+            "sex",
           ],
           sizeLimit: 10,
           timeLimit: 10,

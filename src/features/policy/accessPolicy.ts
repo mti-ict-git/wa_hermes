@@ -3,6 +3,7 @@ import type { IdentityContext } from "./identityResolver";
 export type AccessDecision = "allow" | "deny";
 export type RouteTarget =
   | "blocked"
+  | "silent_ignore"
   | "local_general_command"
   | "local_user_self_service"
   | "local_technician_command"
@@ -53,52 +54,10 @@ export class AccessPolicy {
   }
 
   private evaluateCommand(identity: IdentityContext, command: string): AccessPolicyResult {
-    const normalizedCommand = command.toLowerCase();
-
-    if (["hi", "ping", "help"].includes(normalizedCommand)) {
-      return {
-        decision: "allow",
-        route: "local_general_command",
-        reason: "General safe command is allowed for registered private-chat users.",
-        role: identity.role,
-      };
-    }
-
-    if (["ticket", "status", "buaticket"].includes(normalizedCommand)) {
-      return {
-        decision: "allow",
-        route: "local_user_self_service",
-        reason: "User self-service command is allowed for registered private-chat users.",
-        role: identity.role,
-      };
-    }
-
-    if (
-      ["finduser", "resetpassword", "unlock", "getasset", "licenses", "getlicense", "expiring", "licensereport"].includes(
-        normalizedCommand,
-      )
-    ) {
-      if (!identity.isTechnician) {
-        return {
-          decision: "deny",
-          route: "blocked",
-          reason: "Command ini tidak tersedia untuk role Anda.",
-          role: identity.role,
-        };
-      }
-
-      return {
-        decision: "allow",
-        route: "local_technician_command",
-        reason: "Technician-only command is allowed in private chat.",
-        role: identity.role,
-      };
-    }
-
     return {
-      decision: "deny",
-      route: "blocked",
-      reason: "Command ini belum diizinkan pada policy helpdesk WhatsApp.",
+      decision: "allow",
+      route: "silent_ignore",
+      reason: `Slash command '/${command.toLowerCase()}' is ignored in private chat by policy.`,
       role: identity.role,
     };
   }

@@ -86,6 +86,36 @@ function getHermesMode(rawValue: string | undefined): "sync" | "async" {
   return rawValue?.toLowerCase() === "async" ? "async" : "sync";
 }
 
+function getLogLevel(rawValue: string | undefined): "debug" | "info" | "warn" | "error" {
+  const normalized = rawValue?.toLowerCase();
+  if (normalized === "debug" || normalized === "warn" || normalized === "error") {
+    return normalized;
+  }
+
+  return "info";
+}
+
+function getLogFormat(rawValue: string | undefined, environment: string): "json" | "pretty" {
+  const normalized = rawValue?.toLowerCase();
+  if (normalized === "json" || normalized === "pretty") {
+    return normalized;
+  }
+
+  return environment === "production" ? "json" : "pretty";
+}
+
+function getListValue(key: string, envFileValues: Record<string, string>): string[] {
+  const value = getValue(key, envFileValues);
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function hasLdapConfiguration(envFileValues: Record<string, string>): boolean {
   return Boolean(
     getValue("LDAP_URL", envFileValues) &&
@@ -97,18 +127,29 @@ function hasLdapConfiguration(envFileValues: Record<string, string>): boolean {
 
 export function loadConfig(envPath = DEFAULT_ENV_PATH): AppConfig {
   const envFileValues = loadEnvFile(envPath);
+  const environment = getValue("NODE_ENV", envFileValues) ?? "development";
 
   return {
     appName: getValue("APP_NAME", envFileValues) ?? "wa-plugin-helpdesk",
-    environment: getValue("NODE_ENV", envFileValues) ?? "development",
+    environment,
     server: {
       host: getValue("APP_HOST", envFileValues) ?? "127.0.0.1",
       port: getNumberValue("APP_PORT", 8787, envFileValues),
     },
+    logging: {
+      level: getLogLevel(getValue("LOG_LEVEL", envFileValues)),
+      format: getLogFormat(getValue("LOG_FORMAT", envFileValues), environment),
+    },
     hermes: {
       baseUrl: getRequiredValue("HERMES_BASE_URL", envFileValues),
       apiKey: getRequiredValue("API_SERVER_KEY", envFileValues),
+      model: getValue("HERMES_MODEL", envFileValues) ?? "marisa",
       mode: getHermesMode(getValue("HERMES_MODE", envFileValues)),
+      retryPolicy: {
+        maxAttempts: getNumberValue("HERMES_MAX_ATTEMPTS", 2, envFileValues),
+        delayMs: getNumberValue("HERMES_RETRY_DELAY_MS", 500, envFileValues),
+        timeoutMs: getNumberValue("HERMES_TIMEOUT_MS", 20000, envFileValues),
+      },
     },
     openwa: {
       baseUrl: getRequiredValue("OPENWA_BASE_URL", envFileValues),
@@ -116,6 +157,12 @@ export function loadConfig(envPath = DEFAULT_ENV_PATH): AppConfig {
       apiKey: getRequiredValue("OPENWA_API_KEY", envFileValues),
       apiDocUrl: getValue("OPENWA_API_DOC", envFileValues),
       testNumber: getValue("OPENWA_NUMBER_TEST", envFileValues),
+      botMentionAliases: getListValue("OPENWA_BOT_MENTION_ALIASES", envFileValues),
+      retryPolicy: {
+        maxAttempts: getNumberValue("OPENWA_MAX_ATTEMPTS", 2, envFileValues),
+        delayMs: getNumberValue("OPENWA_RETRY_DELAY_MS", 500, envFileValues),
+        timeoutMs: getNumberValue("OPENWA_TIMEOUT_MS", 15000, envFileValues),
+      },
     },
     ldap: {
       enabled: (getValue("LDAP_ENABLED", envFileValues) ?? String(hasLdapConfiguration(envFileValues))) === "true",
@@ -128,6 +175,9 @@ export function loadConfig(envPath = DEFAULT_ENV_PATH): AppConfig {
       technicianContactsPath:
         getValue("TECHNICIAN_CONTACTS_PATH", envFileValues) ??
         resolve(process.cwd(), "reference", "whatsapp_openwa", "technicianContacts.json"),
+      authContextSecret: getValue("AUTH_CONTEXT_SECRET", envFileValues) ?? getRequiredValue("API_SERVER_KEY", envFileValues),
+      authContextPolicyVersion: getValue("AUTH_CONTEXT_POLICY_VERSION", envFileValues) ?? "2026-08-20",
+      authContextTtlSeconds: getNumberValue("AUTH_CONTEXT_TTL_SECONDS", 120, envFileValues),
     },
   };
 }

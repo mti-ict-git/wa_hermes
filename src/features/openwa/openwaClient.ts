@@ -1,4 +1,6 @@
 import type { OpenWAConfig } from "../../config/types";
+import type { Logger } from "../logging/logger";
+import { withRetry } from "../runtime/retryPolicy";
 import { isPrivateChat } from "./eventNormalizer";
 import type {
   OpenWAMessage,
@@ -15,7 +17,10 @@ interface RequestOptions {
 }
 
 export class OpenWAClient {
-  constructor(private readonly config: OpenWAConfig) {}
+  constructor(
+    private readonly config: OpenWAConfig,
+    private readonly logger: Logger,
+  ) {}
 
   async getSession(): Promise<OpenWASessionSummary> {
     return this.requestJson<OpenWASessionSummary>(`/api/sessions/${this.config.sessionId}`);
@@ -61,21 +66,68 @@ export class OpenWAClient {
   }
 
   private async requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const response = await fetch(`${this.config.baseUrl}${path}`, {
-      method: options.method ?? "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": this.config.apiKey,
-      },
-      body: options.payload === undefined ? undefined : JSON.stringify(options.payload),
-    });
+    const target = `${this.config.baseUrl}${path}`;
 
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`OpenWA request failed (${response.status}): ${body}`);
+    return withRetry(
+      this.config.retryPolicy,
+      this.logger,
+      {
+        operation: `openwa.${(options.method ?? "GET").toLowerCase()}`,
+        target,
+      },
+      async (attempt, signal) => {
+        this.logger.debug("request_started", {
+          operation: "openwa.request",
+          attempt,
+          method: options.method ?? "GET",
+          path,
+        });
+
+        const response = await fetch(target, {
+          method: options.method ?? "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": this.config.apiKey,
+          },
+          body: options.payload === undefined ? undefined : JSON.stringify(options.payload),
+          signal,
+        });
+
+        if (!response.ok) {
+          const body = await response.text();
+          const error = new Error(`OpenWA request failed (${response.status}): ${body}`);
+          (error as Error & { status?: number }).status = response.status;
+          throw error;
+        }
+
+        this.logger.info("request_succeeded", {
+          operation: "openwa.request",
+          attempt,
+          method: options.method ?? "GET",
+          path,
+        });
+
+        return (await response.json()) as T;
+      },
+      (error) => this.isRetryable(error),
+    );
+  }
+
+  private isRetryable(error: unknown): boolean {
+    const status =
+      typeof error === "object" && error && "status" in error && typeof error.status === "number"
+        ? error.status
+        : undefined;
+
+    if (status !== undefined) {
+      return status >= 500 || status === 429;
     }
 
-    return (await response.json()) as T;
+    if (error instanceof Error) {
+      return error.name === "TimeoutError" || error.name === "AbortError" || /fetch failed/i.test(error.message);
+    }
+
+    return false;
   }
 }
 

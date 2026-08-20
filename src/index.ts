@@ -4,6 +4,7 @@ import { HermesClient } from "./features/hermes/hermesClient";
 import { HelpdeskBroker } from "./features/hermes/helpdeskBroker";
 import { CommandRouter } from "./features/inbound/commandRouter";
 import { RouteClassifier } from "./features/inbound/routeClassifier";
+import { createRootLogger } from "./features/logging/logger";
 import { OpenWAClient } from "./features/openwa/openwaClient";
 import { MessagingService } from "./features/openwa/messagingService";
 import { AccessPolicy } from "./features/policy/accessPolicy";
@@ -12,22 +13,32 @@ import { HermesSessionStore } from "./features/state/hermesSessionStore";
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const openwaClient = new OpenWAClient(config.openwa);
-  const hermesClient = new HermesClient(config.hermes);
+  const logger = createRootLogger(config.logging);
+  const openwaClient = new OpenWAClient(config.openwa, logger.child("openwa"));
+  const hermesClient = new HermesClient(config.hermes, logger.child("hermes"));
   const sessionStore = new HermesSessionStore();
   const routeClassifier = new RouteClassifier();
   const accessPolicy = new AccessPolicy();
-  const helpdeskBroker = new HelpdeskBroker(hermesClient, sessionStore);
-  const commandRouter = new CommandRouter(accessPolicy, routeClassifier, helpdeskBroker);
+  const helpdeskBroker = new HelpdeskBroker(hermesClient, sessionStore, logger.child("broker"));
+  const commandRouter = new CommandRouter(accessPolicy, routeClassifier, helpdeskBroker, logger.child("router"));
+  const identityResolver = new IdentityResolver(config.ldap, config.policy);
+  const messagingService = new MessagingService(openwaClient, logger.child("messaging"));
 
   const application = {
     commandRouter,
     routeClassifier,
-    identityResolver: new IdentityResolver(config.ldap, config.policy),
+    identityResolver,
     accessPolicy,
-    messagingService: new MessagingService(openwaClient),
+    messagingService,
     helpdeskBroker,
-    server: new AppServer(config, openwaClient),
+    server: new AppServer(
+      config,
+      openwaClient,
+      identityResolver,
+      commandRouter,
+      messagingService,
+      logger.child("server"),
+    ),
   };
 
   void application.commandRouter;
@@ -42,6 +53,14 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.stack ?? error.message : String(error);
-  console.error(message);
+  console.error(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: "error",
+      scope: "wa-plugin.bootstrap",
+      event: "startup_failed",
+      error: message,
+    }),
+  );
   process.exitCode = 1;
 });

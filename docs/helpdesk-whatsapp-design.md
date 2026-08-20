@@ -20,6 +20,9 @@ This document is the source of truth for:
 - `docs/helpdesk-whatsapp-design.md`
 - `docs/implementation-roadmap.md`
 - `docs/technical-implementation-plan.md`
+- `docs/security-and-access-model.md`
+- `docs/integration-contracts.md`
+- `docs/acknowledgement-and-execution-flow.md`
 
 ## Design Basis
 This document was informed by prior study of the Hermes and OpenWA-based reference systems, but the working source of truth for this repository is now the root `docs/` set only.
@@ -64,10 +67,15 @@ OpenWA webhook
 -> Event normalizer
 -> Identity resolver
 -> Access policy engine
--> Route classifier
+-> Technician exact-match and role resolution
+-> HMAC-signed AuthContext
+-> Early ACK (when needed)
+-> Marisa typed intent generation
+-> Local validator
    -> local command handlers
-   -> helpdesk conversation broker
+   -> read-only backend adapters
    -> reaction / dispatcher workflow
+-> Marisa final summarization
 -> Messaging service
 ```
 
@@ -110,19 +118,20 @@ Owns:
 - slash command parsing
 - helpdesk claim/reaction routing
 - dispatcher integration
-- self-service and technician command execution
+- typed intent validation
+- self-service and technician command execution through approved adapters
 
 ### 4. Hermes Broker Layer
 Owns:
-- conversational helpdesk reasoning
-- ticket triage guidance
-- question answering for valid helpdesk flows
-- formatting the final conversational response
+- typed intent generation for allowed helpdesk flows
+- conversational helpdesk reasoning after safe results are available
+- formatting the final conversational response from safe structured data
 
 Must not own:
 - primary authorization
 - raw command privilege decisions
 - unrestricted ops execution
+- direct raw AD or Veeam access
 
 ## Identity Model
 
@@ -186,6 +195,7 @@ Behavior:
 - primary supported context for helpdesk chat
 - required for regular-user conversational helpdesk
 - required for restricted commands
+- slash commands are currently silently ignored; they are not forwarded to Hermes and they do not produce a local reply
 
 ### Group Chat
 - regular user conversational helpdesk is denied
@@ -200,12 +210,13 @@ This means the design intentionally separates:
 Each inbound event must be classified into exactly one of these paths:
 
 1. `blocked`
-2. `local_general_command`
-3. `local_user_self_service`
-4. `local_technician_command`
-5. `hermes_helpdesk_chat`
-6. `reaction_claim_flow`
-7. `dispatcher_or_system_flow`
+2. `silent_ignore`
+3. `local_general_command`
+4. `local_user_self_service`
+5. `local_technician_command`
+6. `hermes_helpdesk_chat`
+7. `reaction_claim_flow`
+8. `dispatcher_or_system_flow`
 
 Classification order matters:
 1. normalize sender and chat context
@@ -233,8 +244,7 @@ Examples:
 - `/help`
 
 Allowed:
-- `user` in private chat
-- `technician` in private chat
+- currently silently ignored in private chat
 
 ### Category B: User Self-Service
 Examples:
@@ -243,8 +253,7 @@ Examples:
 - future self-service commands that do not expose privileged directory or device data
 
 Allowed:
-- `user` in private chat
-- `technician` in private chat
+- currently silently ignored in private chat
 
 ### Category C: Technician Support Commands
 Examples from reference behavior:
@@ -258,7 +267,7 @@ Examples from reference behavior:
 - `/licensereport`
 
 Allowed:
-- `technician` in private chat only
+- currently silently ignored in private chat
 
 Denied:
 - all group chats
@@ -278,6 +287,7 @@ Initial design stance:
 - deny by default
 - do not enable automatically just because the sender is a technician
 - require an explicit later decision per command family
+- current implementation keeps these slash commands silently ignored in private chat
 
 ### Category E: Helpdesk Group Reaction Commands
 Examples:
@@ -287,6 +297,11 @@ Allowed:
 - only in configured helpdesk groups
 - only for recognized technicians
 - only for tracked notification messages
+
+Default inbound group-chat behavior:
+- ordinary group messages are silently ignored
+- the helpdesk bot only responds in a group when it is explicitly mentioned / tagged
+- after a valid mention, the current default response still guides the sender back to private chat unless a separate group workflow is explicitly defined
 
 ## Initial Command Matrix
 
@@ -310,10 +325,23 @@ Local layer must pass:
 - resolved role
 - normalized helpdesk context
 - optional ticket context if already known locally
+- trusted context summary derived from the signed `AuthContext`
 
 Hermes must not receive:
 - unrestricted raw admin intent outside policy
 - commands that local policy already rejected
+- authority to execute backend operations directly
+
+### Typed Intent Pattern
+For backend-backed helpdesk requests, Marisa is used in two bounded steps:
+1. produce a typed intent candidate
+2. summarize a safe redacted backend result
+
+The WhatsApp bridge remains the trusted executor. It must:
+- validate the typed intent locally
+- enforce role and target scope
+- choose the approved adapter
+- redact backend results before final summarization
 
 ### Session Strategy
 Per private WhatsApp chat, store:
@@ -327,8 +355,11 @@ Rules:
 
 ### Hermes Request Mode
 - current stable default for profile `marisa` is synchronous `chat/completions`
-- async `/v1/runs` remains a future option, but it should not be treated as the default until the runtime/model compatibility issue is resolved
-- if async is reintroduced later, the docs and roadmap must be updated with fresh verification evidence
+- async `/v1/runs` is supported when the request model matches the active profile model name (`marisa` in the current deployment)
+- the TypeScript WhatsApp bridge honors `HERMES_MODE` directly:
+  - `sync` sends `chat/completions`
+  - `async` starts `/v1/runs` and polls until the run completes or fails
+- keep sync as the operational default unless the deployment explicitly wants async behavior
 
 ### Hermes Responsibility
 Hermes `marisa` may:
@@ -336,12 +367,14 @@ Hermes `marisa` may:
 - ask follow-up questions
 - summarize incident context
 - help classify or phrase ticket content
-- call only the tools enabled for the helpdesk profile
+- produce typed intents from trusted context and user text
+- summarize safe structured adapter results for WhatsApp delivery
 
 Hermes `marisa` may not:
 - bypass local authorization
 - act as the sole source of technician role validation
 - assume every WhatsApp user is trusted
+- execute raw backend queries on its own authority
 
 ## Business Flow Design
 
@@ -350,18 +383,21 @@ Hermes `marisa` may not:
 2. phone is normalized
 3. AD lookup validates mobile and `mail`
 4. sender is classified as `user`
-5. message is not a technician-only command
-6. request is sent to Hermes `marisa`
-7. response is returned through `MessagingService`
+5. server issues a signed `AuthContext`
+6. a quick ACK may be sent if the request is likely to take time
+7. message is sent to Hermes `marisa` for typed intent generation or direct bounded conversational guidance
+8. any backend-backed intent is validated locally before adapter execution
+9. a safe final response is returned through `MessagingService`
 
 ### Flow 2: Technician Private Command
 1. inbound private message arrives
 2. sender passes AD eligibility
 3. sender is found in technician contacts
-4. slash command is parsed
-5. policy engine checks command family
-6. local handler executes if allowed
-7. reply is sent locally without routing through Hermes unless the command explicitly uses Hermes-backed helpdesk reasoning
+4. signed `AuthContext` is generated from trusted metadata
+5. request is routed for typed intent generation
+6. policy engine and validator check role, target scope, and adapter allowlist
+7. approved read-only adapter executes locally
+8. safe result is summarized and sent back to WhatsApp
 
 ### Flow 3: Group Reaction Claim Workflow
 1. reaction event arrives
@@ -417,8 +453,26 @@ Responsibilities:
 Responsibilities:
 - build payloads for `marisa`
 - manage `session_key` and `session_id`
-- prefer the stable sync request mode until async compatibility is re-verified
+- support early ACK plus typed-intent/final-summary orchestration
 - translate Hermes output into WhatsApp-ready replies
+
+#### `src/features/security/authContext.ts`
+Responsibilities:
+- build and verify HMAC-signed `AuthContext`
+- enforce TTL and replay protection inputs
+- expose only trusted server-derived caller data
+
+#### `src/features/inbound/intentValidator.ts`
+Responsibilities:
+- validate typed intent payloads from Marisa
+- enforce role and target scope
+- normalize adapter arguments into safe local contracts
+
+#### `src/features/adapters/*`
+Responsibilities:
+- expose typed read-only backend adapters
+- return redacted structured results
+- avoid raw backend-native query surfaces
 
 #### `src/features/state/hermesSessionStore.ts`
 Responsibilities:
@@ -433,6 +487,7 @@ Responsibilities:
 - ServiceDesk Plus: ticket state and helpdesk business records
 - OpenWA: transport identity and message delivery
 - Hermes `marisa`: conversational helpdesk reasoning
+- The helpdesk prompt may include verified sender profile hints such as display name, title, department, employee ID, and technician metadata when available.
 
 ### Source Priority
 1. transport identity from OpenWA
@@ -501,3 +556,4 @@ These should remain concise and non-argumentative.
 - Should blocked non-AD senders receive a denial response or be silently ignored?
 - Should technicians be allowed some read-only group commands later, or should all group slash commands stay denied permanently?
 - What is the desired expiration policy for `session_id` reuse on long-idle private chats?
+- Which read-only AD and Veeam intents should be in the initial typed-intent allowlist?

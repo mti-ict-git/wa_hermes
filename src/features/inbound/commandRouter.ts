@@ -1,4 +1,6 @@
 import type { HelpdeskBroker } from "../hermes/helpdeskBroker";
+import type { Logger } from "../logging/logger";
+import { maskPhone } from "../logging/logger";
 import type { NormalizedInboundEvent } from "../openwa/types";
 import type { AccessPolicy } from "../policy/accessPolicy";
 import type { IdentityContext } from "../policy/identityResolver";
@@ -19,26 +21,22 @@ export interface CommandRouterResult {
   auditLog: string;
 }
 
-function maskPhone(value: string | undefined): string {
-  const digits = (value ?? "").replace(/\D/g, "");
-  if (digits.length < 6) {
-    return digits || "unknown";
-  }
-
-  return `${digits.slice(0, 5)}xxxx${digits.slice(-4)}`;
-}
-
 export class CommandRouter {
   constructor(
     private readonly accessPolicy: AccessPolicy,
     private readonly routeClassifier: RouteClassifier,
     private readonly helpdeskBroker: HelpdeskBroker,
+    private readonly logger: Logger,
   ) {}
 
   async route(input: CommandRouterInput): Promise<CommandRouterResult> {
     const policyResult = this.accessPolicy.evaluateMessage(input.identity, input.event.text);
     const classification = this.routeClassifier.classify(input.event.text, policyResult);
     const parsedCommand = parseCommand(input.event.text);
+
+    if (classification.route === "silent_ignore") {
+      return this.buildResult(input, classification, "", true, parsedCommand?.normalizedName);
+    }
 
     if (classification.route === "blocked") {
       return this.buildResult(input, classification, classification.reason, true, parsedCommand?.normalizedName);
@@ -62,9 +60,24 @@ export class CommandRouter {
     const brokerResult = await this.helpdeskBroker.ask({
       chatId: input.event.chatId,
       message: input.event.text,
+      quotedMessageId: input.event.quotedMessageId,
+      quotedText: input.event.quotedText,
+      quotedParticipantId: input.event.quotedParticipantId,
       role: input.identity.role,
       senderPhone: input.identity.canonicalPhone,
       senderDisplayName: input.identity.adUser?.displayName ?? input.event.chatName ?? undefined,
+      identityProfile: {
+        displayName: input.identity.adUser?.displayName ?? input.event.chatName ?? undefined,
+        mail: input.identity.adUser?.mail,
+        title: input.identity.adUser?.title,
+        department: input.identity.adUser?.department,
+        employeeId: input.identity.adUser?.employeeId,
+        gender: input.identity.technicianContact?.gender ?? input.identity.adUser?.gender,
+        technicianName: input.identity.technicianContact?.name,
+        technicianEmail: input.identity.technicianContact?.email ?? undefined,
+        technicianLabel: input.identity.technicianContact?.technician,
+        lapsAccess: input.identity.technicianContact?.laps_access,
+      },
     });
 
     return this.buildResult(input, classification, brokerResult.reply, false, parsedCommand?.normalizedName);
@@ -119,7 +132,7 @@ export class CommandRouter {
     };
     const auditLog = JSON.stringify(auditPayload);
 
-    console.log(`[command-router:audit] ${auditLog}`);
+    this.logger.audit("policy_decision", auditPayload);
 
     return {
       route: classification.route,

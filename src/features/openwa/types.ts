@@ -70,8 +70,14 @@ export interface NormalizedInboundEvent {
   senderId: string;
   recipientId: string;
   senderPhone?: string;
+  recipientPhone?: string;
   canonicalPhone?: string;
+  mentionIds?: string[];
+  addressedToBot: boolean;
   text: string;
+  quotedMessageId?: string;
+  quotedText?: string;
+  quotedParticipantId?: string;
   timestamp: number;
   createdAt?: string;
   status?: string;

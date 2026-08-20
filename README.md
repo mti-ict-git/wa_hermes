@@ -26,6 +26,7 @@ Start here:
 2. Add the required environment values in `.env`
 3. Run `npm run typecheck`
 4. Run `npm run build`
+5. Optional for easier terminal debugging: set `LOG_FORMAT=pretty`
 
 ## Project Layout
 

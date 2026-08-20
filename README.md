@@ -34,3 +34,9 @@ Start here:
 - `docs/` source-of-truth documentation
 - `chat_hermes.py` local Hermes validation helper
 - `openwa_helpdesk_test.py` local OpenWA integration helper
+
+## Technician Contacts Reference
+
+- The default technician contacts source is `reference/whatsapp_openwa/technicianContacts.json`
+- Runtime resolves this through `TECHNICIAN_CONTACTS_PATH` and falls back to that reference path when the env var is not set
+- If there is another `technicianContacts.json` outside `reference/`, treat it as non-canonical unless `TECHNICIAN_CONTACTS_PATH` explicitly points to it

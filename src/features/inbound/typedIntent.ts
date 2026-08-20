@@ -1,5 +1,7 @@
 export const INTENT_VERSION = "v1" as const;
 
+export const CONTROL_INTENT_NAMES = ["helpdesk.no_backend_action"] as const;
+
 export const SELF_SERVICE_INTENT_NAMES = ["ad.get_self_profile", "ad.get_self_status", "veeam.lookup_self_related_status"] as const;
 
 export const TECHNICIAN_READ_ONLY_INTENT_NAMES = [
@@ -10,7 +12,11 @@ export const TECHNICIAN_READ_ONLY_INTENT_NAMES = [
   "veeam.lookup_restore_points",
 ] as const;
 
-export const TYPED_INTENT_NAMES = [...SELF_SERVICE_INTENT_NAMES, ...TECHNICIAN_READ_ONLY_INTENT_NAMES] as const;
+export const TYPED_INTENT_NAMES = [
+  ...CONTROL_INTENT_NAMES,
+  ...SELF_SERVICE_INTENT_NAMES,
+  ...TECHNICIAN_READ_ONLY_INTENT_NAMES,
+] as const;
 
 export type TypedIntentName = (typeof TYPED_INTENT_NAMES)[number];
 export type TargetScope = "self" | "resolved_user" | "no_target";

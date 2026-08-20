@@ -81,6 +81,16 @@ Define the implementation direction for two separate workstreams:
   - typed intent parsing and validation
   - approved read-only local adapters for AD and Veeam
   - early ACK plus final summarized response flow
+- The current codebase now implements the first runtime slice of that contract:
+  - `AuthContext` HMAC creation and verification
+  - typed intent generation plus validation
+  - early ACK callback in the WhatsApp webhook path
+  - read-only AD profile adapter for self-profile and user-profile lookup
+  - fallback to the legacy conversational broker when no backend action is selected
+- Remaining gap:
+  - durable inbox/outbox for ACK and final response
+  - Veeam adapter wiring
+  - broader typed-intent coverage beyond the initial AD slice
 - The inbound routing layer now supports:
   - slash-command parsing
   - route classification from policy outcome into blocked, silent-ignore, local, or Hermes flows

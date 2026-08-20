@@ -119,6 +119,12 @@ export async function processWebhookPayload(
   const routingResult = await deps.commandRouter.route({
     event: normalizedEvent,
     identity,
+    sendAcknowledgement:
+      options.sendReply
+        ? async (text: string) => {
+            await deps.messagingService.sendText(normalizedEvent.chatId, text);
+          }
+        : undefined,
   });
 
   let deliveryMode: "reply" | "send-text" | "none" = "none";

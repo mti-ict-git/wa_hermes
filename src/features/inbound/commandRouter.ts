@@ -11,6 +11,7 @@ import type { RouteClassifier } from "./routeClassifier";
 export interface CommandRouterInput {
   event: NormalizedInboundEvent;
   identity: IdentityContext;
+  sendAcknowledgement?: (text: string) => Promise<void>;
 }
 
 export interface CommandRouterResult {
@@ -59,25 +60,16 @@ export class CommandRouter {
 
     const brokerResult = await this.helpdeskBroker.ask({
       chatId: input.event.chatId,
+      chatType: input.event.chatType,
+      senderId: input.event.senderId,
+      senderDisplayName: input.event.chatName ?? undefined,
       message: input.event.text,
+      requestId: input.event.messageId,
       quotedMessageId: input.event.quotedMessageId,
       quotedText: input.event.quotedText,
       quotedParticipantId: input.event.quotedParticipantId,
-      role: input.identity.role,
-      senderPhone: input.identity.canonicalPhone,
-      senderDisplayName: input.identity.adUser?.displayName ?? input.event.chatName ?? undefined,
-      identityProfile: {
-        displayName: input.identity.adUser?.displayName ?? input.event.chatName ?? undefined,
-        mail: input.identity.adUser?.mail,
-        title: input.identity.adUser?.title,
-        department: input.identity.adUser?.department,
-        employeeId: input.identity.adUser?.employeeId,
-        gender: input.identity.technicianContact?.gender ?? input.identity.adUser?.gender,
-        technicianName: input.identity.technicianContact?.name,
-        technicianEmail: input.identity.technicianContact?.email ?? undefined,
-        technicianLabel: input.identity.technicianContact?.technician,
-        lapsAccess: input.identity.technicianContact?.laps_access,
-      },
+      identity: input.identity,
+      onAcknowledgement: input.sendAcknowledgement,
     });
 
     return this.buildResult(input, classification, brokerResult.reply, false, parsedCommand?.normalizedName);

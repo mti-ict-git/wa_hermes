@@ -343,6 +343,24 @@ The WhatsApp bridge remains the trusted executor. It must:
 - choose the approved adapter
 - redact backend results before final summarization
 
+### Current Vertical Slice
+The current implementation activates the first trusted backend slice for private-chat helpdesk flows:
+- signed `AuthContext` is created from trusted WhatsApp metadata
+- an early ACK may be sent for backend-like requests
+- Marisa first generates a typed intent
+- the bridge validates the typed intent locally
+- the bridge currently supports read-only AD profile flows:
+  - `ad.get_self_profile`
+  - `ad.get_self_status`
+  - `ad.lookup_user_profile`
+- the technician lookup slice may safely expose bounded troubleshooting fields such as `passwordLastChanged`
+- safe backend results are summarized back through Marisa
+- ordinary conversational requests still fall back to the legacy conversation path
+
+Current limitations:
+- ACK delivery is live but not yet backed by durable inbox/outbox storage
+- Veeam intents remain documented but are not yet wired to a local adapter
+
 ### Session Strategy
 Per private WhatsApp chat, store:
 - `session_key`: stable per chat, for example `wa:private:<chatId>`

@@ -145,7 +145,7 @@ OpenWA webhook
     "value": "12345"
   },
   "arguments": {
-    "fields": ["displayName", "mail", "title", "department"]
+    "fields": ["displayName", "mail", "title", "department", "passwordLastChanged"]
   }
 }
 ```
@@ -160,7 +160,8 @@ OpenWA webhook
     "displayName": "Widji Santoso",
     "mail": "widji.santoso@example.com",
     "title": "Technician",
-    "department": "ICT"
+    "department": "ICT",
+    "passwordLastChanged": "2026-08-18T03:14:25.000Z"
   }
 }
 ```

@@ -1,13 +1,17 @@
 import { loadConfig } from "./config/env";
+import { AdReadOnlyAdapter } from "./features/adapters/adReadOnlyAdapter";
 import { HelpdeskBroker } from "./features/hermes/helpdeskBroker";
 import { HermesClient } from "./features/hermes/hermesClient";
 import { CommandRouter } from "./features/inbound/commandRouter";
+import { IntentValidator } from "./features/inbound/intentValidator";
 import { RouteClassifier } from "./features/inbound/routeClassifier";
 import { createRootLogger } from "./features/logging/logger";
 import type { OpenWAMessage } from "./features/openwa/types";
 import type { NormalizedInboundEvent } from "./features/openwa/types";
 import { AccessPolicy } from "./features/policy/accessPolicy";
 import { IdentityResolver } from "./features/policy/identityResolver";
+import { LdapDirectory } from "./features/policy/ldapDirectory";
+import { AuthContextService } from "./features/security/authContext";
 import { HermesSessionStore } from "./features/state/hermesSessionStore";
 
 function buildEvent(chatId: string, messageId: string, text: string): NormalizedInboundEvent {
@@ -42,10 +46,21 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createRootLogger(config.logging);
   const resolver = new IdentityResolver(config.ldap, config.policy);
+  const authContextService = new AuthContextService(config.policy.authContextSecret, {
+    ttlSeconds: config.policy.authContextTtlSeconds,
+  });
   const router = new CommandRouter(
     new AccessPolicy(),
     new RouteClassifier(),
-    new HelpdeskBroker(new HermesClient(config.hermes, logger.child("verify.hermes")), new HermesSessionStore(), logger.child("verify.broker")),
+    new HelpdeskBroker(
+      new HermesClient(config.hermes, logger.child("verify.hermes")),
+      new HermesSessionStore(),
+      authContextService,
+      new IntentValidator(authContextService),
+      new AdReadOnlyAdapter(new LdapDirectory(config.ldap), logger.child("verify.ad")),
+      config.policy.authContextPolicyVersion,
+      logger.child("verify.broker"),
+    ),
     logger.child("verify.router"),
   );
 

@@ -9,6 +9,7 @@ Define the execution sequence for the WhatsApp helpdesk bridge project so implem
 Phases 1 through 10 are complete for the current implementation scope. The service is ready for controlled pilot testing and operational tuning.
 The Hermes broker now honors `HERMES_MODE` at runtime for the live WhatsApp channel, so deployments can explicitly choose sync or async behavior without patching code again.
 The next documented increment is a trusted orchestration layer built around signed `AuthContext`, typed intent generation, local validation, approved read-only adapters, early ACK, and final Marisa summarization.
+The first runtime slice of that increment is now implemented for AD read-only profile flows, while durable ACK/outbox behavior and Veeam adapters remain pending.
 
 ### Source Documents Used For Latest Closure
 - `AGENTS.md`
@@ -53,6 +54,20 @@ The next documented increment is a trusted orchestration layer built around sign
   - typed intent and validator contracts
   - approved read-only AD and Veeam adapter contracts
   - early ACK plus final summarization execution flow
+- Runtime implementation and verification now include:
+  - `AuthContext` creation inside the live helpdesk broker path
+  - early ACK callback support from the webhook path
+  - typed intent parsing plus validation before backend execution
+  - read-only AD adapter support for self-profile and user-profile lookups
+  - fallback to the legacy conversation path for non-backend requests
+  - successful `npm run typecheck`
+  - successful `npm run build`
+  - successful `node dist/verify-typed-intent-foundation.js`
+  - successful `node dist/verify-trusted-helpdesk-flow.js`
+  - successful post-restart checks on `/health` and `/debug/config`
+  - successful synthetic runtime test through `/channel/webhooks/test` for `siapa saya`, producing an AD-backed self-profile response
+  - successful synthetic runtime test through `/channel/webhooks/test` for `cari user Mahathir`, producing a technician-only AD lookup response
+  - successful synthetic runtime test through `/channel/webhooks/test` for `halo helpdesk`, producing a fallback legacy conversational response
 
 ## Delivery Status
 

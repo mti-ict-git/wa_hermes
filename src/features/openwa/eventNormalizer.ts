@@ -329,50 +329,6 @@ export function normalizeWebhookInboundMessage(raw: unknown, botMentionAliases: 
     firstString(extracted.payload.quotedText, extracted.payload.quotedBody) ??
     undefined;
 
-  // #region debug-point A:webhook-quoted-shape
-  (() => {
-    const fs = require("node:fs");
-    const p = ".dbg/quoted-reply-context.env";
-    let u = "http://127.0.0.1:7777/event";
-    let s = "quoted-reply-context";
-    try {
-      const e = fs.readFileSync(p, "utf8");
-      u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u;
-      s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s;
-    } catch {}
-    fetch(u, {
-      method: "POST",
-      body: JSON.stringify({
-        sessionId: s,
-        runId: "pre-fix",
-        hypothesisId: "A",
-        location: "eventNormalizer.ts:normalizeWebhookInboundMessage",
-        msg: "[DEBUG] Raw quoted reply webhook candidates",
-        data: {
-          eventType,
-          chatId,
-          senderIdRaw,
-          text,
-          quotedStanzaId:
-            quotedMessageId ?? null,
-          quotedParticipant: quotedParticipantId ?? null,
-          quotedText: quotedText ?? null,
-          hasQuotedMessage:
-            Boolean(extracted.payload.quotedMessage) ||
-            Boolean(payloadContextInfo?.quotedMessage) ||
-            Boolean(messageContextInfo?.quotedMessage) ||
-            Boolean(quotedText),
-          payloadKeys: Object.keys(extracted.payload).slice(0, 20),
-          messageKeys: message ? Object.keys(message).slice(0, 20) : [],
-          payloadContextInfoKeys: payloadContextInfo ? Object.keys(payloadContextInfo).slice(0, 20) : [],
-          messageContextInfoKeys: messageContextInfo ? Object.keys(messageContextInfo).slice(0, 20) : [],
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-  })();
-  // #endregion
-
   const senderId = normalizeSenderId(senderIdRaw);
   const recipientId = firstString(
     extracted.payload.to,
@@ -400,39 +356,6 @@ export function normalizeWebhookInboundMessage(raw: unknown, botMentionAliases: 
     readMentionIdsFromContainer(extracted.payload),
   );
   const addressedToBot = isAddressedToBot(getChatType(chatId), recipientId, mentionIds, text, botMentionAliases);
-
-  // #region debug-point B:normalized-quoted-gap
-  (() => {
-    const fs = require("node:fs");
-    const p = ".dbg/quoted-reply-context.env";
-    let u = "http://127.0.0.1:7777/event";
-    let s = "quoted-reply-context";
-    try {
-      const e = fs.readFileSync(p, "utf8");
-      u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u;
-      s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s;
-    } catch {}
-    fetch(u, {
-      method: "POST",
-      body: JSON.stringify({
-        sessionId: s,
-        runId: "pre-fix",
-        hypothesisId: "B",
-        location: "eventNormalizer.ts:normalizeWebhookInboundMessage",
-        msg: "[DEBUG] Normalized event quoted-context availability",
-        data: {
-          messageId: messageId ?? `webhook-${timestamp}`,
-          chatId,
-          senderId,
-          normalizedHasQuotedFields: Boolean(quotedMessageId || quotedText || quotedParticipantId),
-          rawQuotedStanzaId: quotedMessageId ?? null,
-          rawQuotedText: quotedText ?? null,
-        },
-        ts: Date.now(),
-      }),
-    }).catch(() => {});
-  })();
-  // #endregion
 
   return {
     messageId: messageId ?? `webhook-${timestamp}`,

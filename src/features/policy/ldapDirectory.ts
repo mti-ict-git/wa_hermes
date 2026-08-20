@@ -11,6 +11,7 @@ export interface AdUserRecord {
   department?: string;
   title?: string;
   gender?: string;
+  passwordLastChanged?: string;
 }
 
 function normalizePhoneDigits(value: string | undefined): string {
@@ -55,6 +56,29 @@ function pickFirstAttribute(map: Map<string, string[]>, name: string): string | 
   return values?.[0];
 }
 
+function convertWindowsFileTimeToIso(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const raw = BigInt(value.trim());
+    if (raw <= 0n) {
+      return undefined;
+    }
+
+    const epochDiff = 116444736000000000n;
+    const unixTimeMs = Number((raw - epochDiff) / 10000n);
+    if (!Number.isFinite(unixTimeMs) || unixTimeMs <= 0) {
+      return undefined;
+    }
+
+    return new Date(unixTimeMs).toISOString();
+  } catch {
+    return undefined;
+  }
+}
+
 function mapEntryToUser(entry: ldap.SearchEntry): AdUserRecord {
   const attributes = buildAttributeMap(entry);
 
@@ -76,6 +100,7 @@ function mapEntryToUser(entry: ldap.SearchEntry): AdUserRecord {
       pickFirstAttribute(attributes, "gender") ??
       pickFirstAttribute(attributes, "genderIdentity") ??
       pickFirstAttribute(attributes, "sex"),
+    passwordLastChanged: convertWindowsFileTimeToIso(pickFirstAttribute(attributes, "pwdLastSet")),
   };
 }
 
@@ -151,6 +176,42 @@ export class LdapDirectory {
     });
   }
 
+  async searchUsersByQuery(query: string, limit = 5): Promise<AdUserRecord[]> {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || !this.isConfigured()) {
+      return [];
+    }
+
+    const escaped = escapeLdapFilterValue(trimmedQuery);
+    const digits = normalizePhoneDigits(trimmedQuery);
+    const digitFragments = Array.from(
+      new Set(
+        [
+          digits,
+          digits.startsWith("62") ? `0${digits.slice(2)}` : "",
+          digits.startsWith("0") ? `62${digits.slice(1)}` : "",
+        ].filter((value) => value.length > 0),
+      ),
+    );
+
+    const phoneFilter =
+      digitFragments.length > 0
+        ? digitFragments
+            .map((value) => {
+              const escapedValue = escapeLdapFilterValue(value);
+              return `(|(mobile=*${escapedValue}*)(mobileNumber=*${escapedValue}*)(telephoneNumber=*${escapedValue}*))`;
+            })
+            .join("")
+        : "";
+
+    const filter = `(&(|(displayName=*${escaped}*)(cn=*${escaped}*)(name=*${escaped}*)(sAMAccountName=*${escaped}*)(userPrincipalName=*${escaped}*)(mail=*${escaped}*)(employeeID=*${escaped}*)${phoneFilter})(objectCategory=person)(objectClass=user))`;
+
+    return this.withClient(async (client) => {
+      const matches = await this.searchUsers(client, filter, limit);
+      return matches.slice(0, limit);
+    });
+  }
+
   private async withClient<T>(operation: (client: ldap.Client) => Promise<T>): Promise<T> {
     const client = ldap.createClient({
       url: this.config.url!,
@@ -183,7 +244,7 @@ export class LdapDirectory {
     }
   }
 
-  private async searchUsers(client: ldap.Client, filter: string): Promise<AdUserRecord[]> {
+  private async searchUsers(client: ldap.Client, filter: string, sizeLimit = 10): Promise<AdUserRecord[]> {
     return await new Promise<AdUserRecord[]>((resolve, reject) => {
       client.search(
         this.config.baseDn!,
@@ -206,8 +267,9 @@ export class LdapDirectory {
             "gender",
             "genderIdentity",
             "sex",
+            "pwdLastSet",
           ],
-          sizeLimit: 10,
+          sizeLimit,
           timeLimit: 10,
         },
         (error: ldap.Error | null, result: ldap.SearchCallbackResponse) => {

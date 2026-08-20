@@ -2,11 +2,13 @@ import type { SignedAuthContext } from "../security/authContext";
 import { AuthContextService } from "../security/authContext";
 import type { TypedIntentEnvelope, TypedIntentName, TypedIntentTargetRef } from "./typedIntent";
 import {
+  CONTROL_INTENT_NAMES,
   SELF_SERVICE_INTENT_NAMES,
   TECHNICIAN_READ_ONLY_INTENT_NAMES,
   parseTypedIntentCandidate,
 } from "./typedIntent";
 
+const CONTROL_INTENT_SET = new Set<string>(CONTROL_INTENT_NAMES);
 const SELF_SERVICE_INTENT_SET = new Set<string>(SELF_SERVICE_INTENT_NAMES);
 const TECHNICIAN_READ_ONLY_INTENT_SET = new Set<string>(TECHNICIAN_READ_ONLY_INTENT_NAMES);
 
@@ -35,6 +37,7 @@ export interface ValidatedIntentResult {
 }
 
 const ALLOWED_ARGUMENTS_BY_INTENT: Record<TypedIntentName, readonly string[]> = {
+  "helpdesk.no_backend_action": [],
   "ad.get_self_profile": ["fields"],
   "ad.get_self_status": [],
   "veeam.lookup_self_related_status": ["date_range"],
@@ -137,6 +140,10 @@ export class IntentValidator {
   }
 
   private isRoleAllowed(role: SignedAuthContext["role"], intentName: TypedIntentName): boolean {
+    if (CONTROL_INTENT_SET.has(intentName)) {
+      return role === "user" || role === "technician";
+    }
+
     if (role === "technician") {
       return TECHNICIAN_READ_ONLY_INTENT_SET.has(intentName) || SELF_SERVICE_INTENT_SET.has(intentName);
     }
@@ -153,16 +160,16 @@ export class IntentValidator {
     targetScope: TypedIntentEnvelope["target_scope"],
     targetRef: TypedIntentEnvelope["target_ref"],
   ): boolean {
+    if (targetScope === "no_target" && targetRef === null) {
+      return role === "user" || role === "technician";
+    }
+
     if (role === "user") {
       return targetScope === "self" && targetRef === null;
     }
 
     if (role === "technician") {
       if (targetScope === "self" && targetRef === null) {
-        return true;
-      }
-
-      if (targetScope === "no_target" && targetRef === null) {
         return true;
       }
 

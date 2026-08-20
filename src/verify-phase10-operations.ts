@@ -1,11 +1,15 @@
 import { createRootLogger } from "./features/logging/logger";
+import { AdReadOnlyAdapter } from "./features/adapters/adReadOnlyAdapter";
 import { HermesClient } from "./features/hermes/hermesClient";
 import { HelpdeskBroker } from "./features/hermes/helpdeskBroker";
 import { CommandRouter } from "./features/inbound/commandRouter";
+import { IntentValidator } from "./features/inbound/intentValidator";
 import { RouteClassifier } from "./features/inbound/routeClassifier";
 import { OpenWAClient } from "./features/openwa/openwaClient";
 import { AccessPolicy } from "./features/policy/accessPolicy";
 import type { IdentityContext } from "./features/policy/identityResolver";
+import { LdapDirectory } from "./features/policy/ldapDirectory";
+import { AuthContextService } from "./features/security/authContext";
 import { HermesSessionStore } from "./features/state/hermesSessionStore";
 import { loadConfig } from "./config/env";
 import type { NormalizedInboundEvent, OpenWAMessage } from "./features/openwa/types";
@@ -50,6 +54,9 @@ async function expectFailure(label: string, callback: () => Promise<unknown>): P
 async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createRootLogger({ level: "debug", format: "pretty" });
+  const authContextService = new AuthContextService(config.policy.authContextSecret, {
+    ttlSeconds: config.policy.authContextTtlSeconds,
+  });
 
   const blockedIdentity: IdentityContext = {
     chatId: "6281296827466@c.us",
@@ -71,6 +78,10 @@ async function main(): Promise<void> {
     new HelpdeskBroker(
       new HermesClient(config.hermes, logger.child("verify.router.hermes")),
       new HermesSessionStore(),
+      authContextService,
+      new IntentValidator(authContextService),
+      new AdReadOnlyAdapter(new LdapDirectory(config.ldap), logger.child("verify.router.ad")),
+      config.policy.authContextPolicyVersion,
       logger.child("verify.router.broker"),
     ),
     logger.child("verify.router"),

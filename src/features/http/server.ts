@@ -98,6 +98,8 @@ export class AppServer {
             },
             policy: {
               technicianContactsPath: this.config.policy.technicianContactsPath,
+              authContextPolicyVersion: this.config.policy.authContextPolicyVersion,
+              authContextTtlSeconds: this.config.policy.authContextTtlSeconds,
             },
           }),
         );

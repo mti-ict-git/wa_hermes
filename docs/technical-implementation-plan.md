@@ -107,6 +107,7 @@ Define the implementation direction for two separate workstreams:
 - Operational hardening now includes:
   - structured JSON logging
   - deployment and environment documentation
+  - Docker packaging for the Node bridge service through `Dockerfile`, `.dockerignore`, and `docker-compose.yml`
   - day-2 runbook steps for restart, webhook recovery, and replay
   - an explicit state evolution path from memory to SQLite before any Redis adoption
 

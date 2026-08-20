@@ -7,6 +7,7 @@ Define the initial deployment shape, required environment variables, and runtime
 - Runtime: Node.js 22
 - App process: single TypeScript service started from `dist/index.js`
 - Default bind: `127.0.0.1:8787`
+- Docker bind override: `0.0.0.0:8787` inside the container
 - Recommended production exposure:
   - run the service behind a reverse proxy or internal ingress
   - expose only the webhook and health routes that must be reachable
@@ -25,6 +26,55 @@ Recommended host responsibilities:
 - OpenWA remains the WhatsApp transport boundary
 - this service remains the policy, routing, and Hermes bridge boundary
 - Hermes `marisa` remains the conversational helpdesk boundary
+
+## Docker Packaging
+
+The repository now includes:
+- `Dockerfile`
+  - multi-stage Node 22 image
+  - builds `dist/` in the build stage
+  - prunes dev dependencies before the runtime stage
+  - exposes port `8787`
+  - includes an HTTP healthcheck against `/health`
+- `docker-compose.yml`
+  - packages only the Node bridge service
+  - reads runtime secrets/config from the host `.env`
+  - overrides `APP_HOST=0.0.0.0` for container networking
+  - mounts `./reference/whatsapp_openwa` read-only into the container so the default technician contacts path still works
+- `.dockerignore`
+  - keeps `.env`, `node_modules`, build output, and local reference material out of the image build context
+
+## Docker Usage
+
+Build the image:
+
+```bash
+docker build -t wa-plugin-helpdesk:local .
+```
+
+Run with Compose:
+
+```bash
+docker compose up --build -d
+```
+
+Stop the container:
+
+```bash
+docker compose down
+```
+
+Watch logs:
+
+```bash
+docker compose logs -f wa-plugin-helpdesk
+```
+
+Operational notes:
+- `.env` stays outside the image and is injected at runtime through `env_file`
+- OpenWA, Hermes, and LDAP stay external to this compose file
+- if technician lookup is required, keep `reference/whatsapp_openwa/technicianContacts.json` present on the host before starting Compose
+- if a deployment wants a different contacts path, set `TECHNICIAN_CONTACTS_PATH` explicitly in `.env`
 
 ## Required Environment Variables
 
@@ -119,6 +169,7 @@ Recommended host responsibilities:
 - `TECHNICIAN_CONTACTS_PATH`
   - optional
   - recommended: set an explicit deployment-managed path such as `data/technicianContacts.json`
+  - in the provided Compose setup, the default fallback path is preserved by mounting `./reference/whatsapp_openwa` into `/app/reference/whatsapp_openwa`
 
 ## Webhook Registration Targets
 The application accepts these equivalent live webhook paths:
@@ -162,3 +213,4 @@ Decision rule:
 - do not bind this service publicly without filtering who can reach the webhook endpoint
 - keep the dedicated `marisa` profile isolated from the default Hermes profile
 - do not enable restricted technician or high-sensitivity commands without policy and audit updates
+- for container deployments, prefer `docker compose up --build -d` on the same host that already manages the `.env` and technician reference file

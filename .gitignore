@@ -9,6 +9,7 @@ __pycache__/
 
 .chat_hermes_state.json
 .openwa_hermes_state.json
+technicianContacts.json
 
 reference/
 

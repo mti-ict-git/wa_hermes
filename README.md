@@ -17,7 +17,8 @@ Start here:
 ## Current Status
 
 - TypeScript is the primary implementation language
-- Active delivery phase: Phase 7 - Hermes Broker and Session Store
+- Active delivery phase: None - Phase 10 Closed
+- Docker packaging is available for the Node bridge service through `Dockerfile` and `docker-compose.yml`
 - `reference/` is local study material and is intentionally excluded from version control
 
 ## Local Development
@@ -27,6 +28,21 @@ Start here:
 3. Run `npm run typecheck`
 4. Run `npm run build`
 5. Optional for easier terminal debugging: set `LOG_FORMAT=pretty`
+
+## Docker Run
+
+1. Ensure `.env` on the host already contains the required OpenWA, Hermes, LDAP, and policy values.
+2. Ensure `reference/whatsapp_openwa/technicianContacts.json` exists locally if technician lookup is needed in the container.
+3. Build and run the bridge:
+   - `docker compose up --build -d`
+4. Check health:
+   - `docker compose logs -f wa-plugin-helpdesk`
+   - `curl http://127.0.0.1:8787/health`
+
+Notes:
+- the Docker setup packages only this Node bridge service
+- OpenWA, Hermes, and LDAP remain external dependencies and are reached through the values in `.env`
+- the container forces `APP_HOST=0.0.0.0` so port `8787` is reachable from the host
 
 ## Project Layout
 

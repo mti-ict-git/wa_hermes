@@ -1,0 +1,18 @@
+services:
+  wa-plugin-helpdesk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wa-plugin-helpdesk
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8787
+      LOG_FORMAT: json
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./reference/whatsapp_openwa:/app/reference/whatsapp_openwa:ro

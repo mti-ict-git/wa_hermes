@@ -10,6 +10,7 @@ Phases 1 through 10 are complete for the current implementation scope. The servi
 The Hermes broker now honors `HERMES_MODE` at runtime for the live WhatsApp channel, so deployments can explicitly choose sync or async behavior without patching code again.
 The next documented increment is a trusted orchestration layer built around signed `AuthContext`, typed intent generation, local validation, approved read-only adapters, early ACK, and final Marisa summarization.
 The first runtime slice of that increment is now implemented for AD read-only profile flows, while durable ACK/outbox behavior and Veeam adapters remain pending.
+The repository now also includes first-pass Docker packaging for the Node bridge service through `Dockerfile`, `.dockerignore`, and `docker-compose.yml`, while keeping OpenWA, Hermes, and LDAP external.
 
 ### Source Documents Used For Latest Closure
 - `AGENTS.md`
@@ -68,6 +69,10 @@ The first runtime slice of that increment is now implemented for AD read-only pr
   - successful synthetic runtime test through `/channel/webhooks/test` for `siapa saya`, producing an AD-backed self-profile response
   - successful synthetic runtime test through `/channel/webhooks/test` for `cari user Mahathir`, producing a technician-only AD lookup response
   - successful synthetic runtime test through `/channel/webhooks/test` for `halo helpdesk`, producing a fallback legacy conversational response
+  - Docker packaging artifacts were added for the bridge service
+  - deployment docs now describe `docker build` and `docker compose up --build -d`
+  - `npm run typecheck` succeeded after adding the Docker packaging artifacts
+  - `npm run build` succeeded after adding the Docker packaging artifacts
 
 ## Delivery Status
 
